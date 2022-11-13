@@ -6,8 +6,8 @@ st.set_page_config(layout="wide")
 @st.cache
 def get_data():
     df = pd.read_csv('data/position_metadata.csv')
-    jobs = list(pd.read_csv('jobs.csv').job_title.sort_values())
-    depts = sorted(list(pd.read_csv('depts.csv').department.dropna().sort_values()))
+    jobs = list(pd.read_csv('data/jobs.csv').job_title.sort_values())
+    depts = sorted(list(pd.read_csv('data/depts.csv').department.dropna().sort_values()))
     return df, jobs, depts
 
 
@@ -43,7 +43,7 @@ def filter_data(df, selected_jobs, selected_depts, group_data = True):
     
     print("Filtering data")
     if len(selected_depts) >= 1 and len(selected_jobs) == 0:
-        fig_width = 500
+        fig_width = 800
         if group_data is False:
             ff = df[ df.department.isin(selected_depts) ].groupby(['department', 'date', 'status']).positions.sum().reset_index()
             ff['job_title'] = "Combined jobs"
