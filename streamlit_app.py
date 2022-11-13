@@ -5,7 +5,7 @@ import streamlit as st
 st.set_page_config(layout="wide")
 @st.cache
 def get_data():
-    df = pd.read_csv('position_metadata.csv')
+    df = pd.read_csv('data/position_metadata.csv')
     jobs = list(pd.read_csv('jobs.csv').job_title.sort_values())
     depts = sorted(list(pd.read_csv('depts.csv').department.dropna().sort_values()))
     return df, jobs, depts
