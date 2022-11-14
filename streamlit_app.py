@@ -1,6 +1,7 @@
 import pandas as pd
 import plotly.express as px
 import streamlit as st 
+import base64
 
 st.set_page_config(layout="wide")
 @st.cache
@@ -8,7 +9,8 @@ def get_data():
     df = pd.read_csv('data/position_metadata.csv')
     jobs = list(pd.read_csv('data/jobs.csv').job_title.sort_values())
     depts = sorted(list(pd.read_csv('data/depts.csv').department.dropna().sort_values()))
-    return df, jobs, depts
+    tl = pd.read_csv('data/positions_over_time.csv')
+    return df, jobs, depts, tl
 
 
 def get_figure(data, selected_jobs, selected_depts, width, height):
@@ -36,11 +38,16 @@ def get_figure(data, selected_jobs, selected_depts, width, height):
     return fig 
 
 
-def filter_data(df, selected_jobs, selected_depts, group_data = True):
+def filter_graph_data(df, selected_jobs, selected_depts, group_data = True):
+    print("Filtering data")
     fig_width = 500 * max(len(selected_jobs),1)
     fig_height = 500 * max(len(selected_depts), 1)
     
-    print("Filtering data")
+    if len(selected_depts) == 0 and len(selected_jobs) == 0:
+        ff = df.groupby(['date', 'status']).positions.sum().reset_index()
+        ff['department'] = "Combined selection"
+        ff['job_title'] = "Combined jobs"
+        
     if len(selected_depts) >= 1 and len(selected_jobs) == 0:
         fig_width = 800
         if group_data is False:
@@ -69,23 +76,89 @@ def filter_data(df, selected_jobs, selected_depts, group_data = True):
                     .positions.sum()
                     .reset_index()
         )
-    
 
     return ff, fig_width, fig_height
 
 
-df, jobs, depts = get_data()
+def filter_jobs(df, selected_jobs):
+    if len(selected_jobs) == 0:
+        return df
+    else:
+        return df[df.job_title.isin(selected_jobs)]
+
+
+def filter_depts(df, selected_depts):
+    if len(selected_depts) == 0:
+        return df
+    else:
+        return df[df.department.isin(selected_depts)]
+
+
+def filter_source_data(tl, selected_jobs, selected_depts):
+    
+    df = ( tl
+            .pipe(filter_jobs, selected_jobs)
+            .pipe(filter_depts, selected_depts)
+    )
+    return df 
+
+
+def get_table_download_link(df, download_filename, link_text="CSV"):
+    """Generates a link allowing the data in a given panda dataframe to be downloaded
+    in:  dataframe
+    out: href string
+    """
+    # df.to_csv(f'data/{download_filename}', index=False)
+    csv = df.to_csv(index=False)
+    b64 = base64.b64encode(csv.encode()).decode()  # some strings <-> bytes conversions necessary here
+    href = f'<a href="data:file/csv;base64,{b64}" download="{download_filename}">{link_text}</a>'
+    return href
+
+full_source_url = "https://drive.google.com/file/d/18BUAV6KAPfx6um3h6BODCMrMOFAPmpLp/view?usp=share_link"
+
+about_this_tool = f"""
+# CPS Positions Over Time
+This tool was built by Anthony Moser. The data unifies these [CPS employee position files](https://www.cps.edu/about/finance/employee-position-files/).  
+Under the hood it's basically a pivot table of position_ids over the reporting dates (you can [download that data here]({full_source_url})).   
+The categories represent a comparison of each reporting date to the one immediately prior.  
+
+* "Filled" means the position continues to be filled by the staff member.
+* "Change in staff" means the name listed in the position file has changed.
+* "Open" means nobody is assigned to the role.
+
+If you look at the source data, there's another category, "DNE" for "did not exist". 
+That represents positions that had no reporting data for that period, as distinct from open positions.
+"""
+
+df, jobs, depts, tl = get_data()
 selected_jobs = st.sidebar.multiselect("Choose job(s)", options=jobs)
 selected_depts = st.sidebar.multiselect("Choose department(s)", options=depts)
 add_graph = st.sidebar.button("Show graphs")
 group_data = st.sidebar.checkbox("Group schools and positions", value=True)
+show_data = st.sidebar.checkbox("Show source data", value = False)
+
+st.markdown(about_this_tool)
+
 if add_graph:
-    print(selected_jobs, selected_depts)
-    print(len(selected_jobs), len(selected_depts))
-    data, width, height = filter_data(df, selected_jobs, selected_depts, group_data)
-    
-    
+    # print(selected_jobs, selected_depts)
+    # print(len(selected_jobs), len(selected_depts))
+    data, width, height = filter_graph_data(df, selected_jobs, selected_depts, group_data)
     fig = get_figure(data.sort_values('date'), selected_jobs, selected_depts, width, height)
     st.plotly_chart(fig)
-    st.dataframe(data)
+    
+    fsd = filter_source_data(tl, selected_jobs, selected_depts)
+    if len(selected_depts) == 0 and len(selected_jobs) == 0:
+        st.markdown(f'[Download the unfiltered data set]({full_source_url})')
+    else:
+        st.markdown(get_table_download_link(fsd, 'Filtered CPS Position Data.csv', 'Download filtered source data'), unsafe_allow_html=True)
+    
+    if show_data:
+        st.write("Metadata")
+        st.dataframe(data)
+        
+        st.write("Position file data")
+        st.dataframe(fsd)
+    
+    
+
 
