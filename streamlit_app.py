@@ -13,7 +13,6 @@ def get_data():
 
 def get_figure(data, selected_jobs, selected_depts, width, height):
 
-    
     print("Generating figure")
     fig = px.bar(data, x='date', y='positions', color='status', barmode='stack', 
                 color_discrete_map = {
@@ -45,10 +44,10 @@ def filter_data(df, selected_jobs, selected_depts, group_data = True):
     if len(selected_depts) >= 1 and len(selected_jobs) == 0:
         fig_width = 800
         if group_data is False:
-            ff = df[ df.department.isin(selected_depts) ].groupby(['department', 'date', 'status']).positions.sum().reset_index()
-            ff['job_title'] = "Combined jobs"
+            ff = df[ df.department.isin(selected_depts) ].groupby(['department', 'date', 'job_title', 'status']).positions.sum().reset_index()
+            # ff['job_title'] = "Combined jobs"
             
-        elif group_data is False:
+        elif group_data is True:
             ff = df[ df.department.isin(selected_depts) ].groupby(['date', 'status']).positions.sum().reset_index()
             ff['department'] = "Combined selection"
             ff['job_title'] = "Combined jobs"
@@ -70,6 +69,7 @@ def filter_data(df, selected_jobs, selected_depts, group_data = True):
                     .positions.sum()
                     .reset_index()
         )
+    
 
     return ff, fig_width, fig_height
 
