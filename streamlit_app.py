@@ -13,7 +13,7 @@ def get_data():
     return df, jobs, depts, tl
 
 
-def get_figure(data, selected_jobs, selected_depts, width, height):
+def get_figure(data, width, height):
 
     print("Generating figure")
     fig = px.bar(data, x='date', y='positions', color='status', barmode='stack', 
@@ -38,44 +38,33 @@ def get_figure(data, selected_jobs, selected_depts, width, height):
     return fig 
 
 
-def filter_graph_data(df, selected_jobs, selected_depts, group_data = True):
+def filter_graph_data(df, selected_jobs, selected_depts, group_jobs = True, group_depts = True):
+
     print("Filtering data")
-    fig_width = 500 * max(len(selected_jobs),1)
-    fig_height = 500 * max(len(selected_depts), 1)
+
+    groupby_fields = ['date', 'status']
     
-    if len(selected_depts) == 0 and len(selected_jobs) == 0:
-        ff = df.groupby(['date', 'status']).positions.sum().reset_index()
-        ff['department'] = "Combined selection"
+    if group_depts is False and 0 < len(selected_depts) <= 5:
+        groupby_fields.append('department')
+    
+    if group_jobs is False and 0 < len(selected_jobs) <= 5:
+        groupby_fields.append('job_title')
+    
+    job_filter  = (df.job_title.isin(selected_jobs)) | (len(selected_jobs) == 0)
+    dept_filter = (df.department.isin(selected_depts)) | (len(selected_depts) == 0)
+    
+    ff = ( df[(job_filter) & (dept_filter)]
+            .groupby(groupby_fields).positions.sum()
+            .reset_index() )
+    
+    if 'department' not in ff.columns:
+        ff['department'] = "Combined selection" if len(selected_depts) > 0 else "District Totals"
+    
+    if 'job_title'  not in ff.columns:
         ff['job_title'] = "Combined jobs"
-        
-    if len(selected_depts) >= 1 and len(selected_jobs) == 0:
-        fig_width = 800
-        if group_data is False:
-            ff = df[ df.department.isin(selected_depts) ].groupby(['department', 'date', 'job_title', 'status']).positions.sum().reset_index()
-            # ff['job_title'] = "Combined jobs"
-            
-        elif group_data is True:
-            ff = df[ df.department.isin(selected_depts) ].groupby(['date', 'status']).positions.sum().reset_index()
-            ff['department'] = "Combined selection"
-            ff['job_title'] = "Combined jobs"
-            
-    if len(selected_depts) == 0 and len(selected_jobs) > 0:
-        fig_height = 500
-        if group_data is False:
-            ff = df[df.job_title.isin(selected_jobs)].groupby(['job_title', 'date', 'status']).positions.sum().reset_index()
-            ff['department'] = "Combined depts"
-        elif group_data is True:
-            ff = df[df.job_title.isin(selected_jobs)].groupby(['date', 'status']).positions.sum().reset_index()
-            ff['department'] = "Combined depts"
-            ff['job_title'] = "Combined jobs"
-        
-    if len(selected_depts) > 0 and len(selected_jobs) > 0:
-        ff = (
-                df[(df.department.isin(selected_depts)) & (df.job_title.isin(selected_jobs))]
-                    .groupby(['department', 'job_title', 'date', 'status'])
-                    .positions.sum()
-                    .reset_index()
-        )
+
+    fig_width =  800 * min(len(ff.job_title.unique()), 5)
+    fig_height = 600 * min(len(ff.department.unique()), 5)
 
     return ff, fig_width, fig_height
 
@@ -131,21 +120,28 @@ That represents positions that had no reporting data for that period, as distinc
 """
 
 df, jobs, depts, tl = get_data()
-selected_jobs = st.sidebar.multiselect("Choose job(s)", options=jobs)
-selected_depts = st.sidebar.multiselect("Choose department(s)", options=depts)
-add_graph = st.sidebar.button("Show graphs")
-group_data = st.sidebar.checkbox("Group schools and positions", value=True)
-show_data = st.sidebar.checkbox("Show source data", value = False)
+selected_jobs       = st.sidebar.multiselect("Choose job(s)", options=jobs)
+selected_depts      = st.sidebar.multiselect("Choose department(s)", options=depts)
+add_graph           = st.sidebar.button("Show graphs")
+group_jobs          = st.sidebar.checkbox("Group positions", value=True)
+group_depts         = st.sidebar.checkbox("Group depts", value = True)
+show_data           = st.sidebar.checkbox("Show source data", value = False)
+compare_to_district = st.sidebar.checkbox("Compare to district", value = False)
 
 st.markdown(about_this_tool)
 
 if add_graph:
     # print(selected_jobs, selected_depts)
     # print(len(selected_jobs), len(selected_depts))
-    data, width, height = filter_graph_data(df, selected_jobs, selected_depts, group_data)
-    fig = get_figure(data.sort_values('date'), selected_jobs, selected_depts, width, height)
+    data, width, height = filter_graph_data(df, selected_jobs, selected_depts, group_jobs, group_depts)
+    fig = get_figure(data.sort_values('date'), width, height)
     st.plotly_chart(fig)
     
+    if compare_to_district:
+        data, width, height = filter_graph_data(df, selected_jobs, [], group_jobs, True)
+        fig = get_figure(data.sort_values('date'), width, height)
+        st.plotly_chart(fig)
+        
     fsd = filter_source_data(tl, selected_jobs, selected_depts)
     if len(selected_depts) == 0 and len(selected_jobs) == 0:
         st.markdown(f'[Download the unfiltered data set]({full_source_url})')
