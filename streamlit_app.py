@@ -131,7 +131,8 @@ compare_to_district = st.sidebar.checkbox("Compare to district", value = False)
 st.markdown(about_this_tool)
 
 if add_graph:
-
+    # print(selected_jobs, selected_depts)
+    # print(len(selected_jobs), len(selected_depts))
     data, width, height = filter_graph_data(df, selected_jobs, selected_depts, group_jobs, group_depts)
     fig = get_figure(data.sort_values('date'), width, height)
     st.plotly_chart(fig)
